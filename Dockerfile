@@ -1,50 +1,60 @@
-# Use Python 3.9 slim image as base
-FROM python:3.12
+# Tahap 1: Builder - Bertugas menginstal semua dependensi
+# Menggunakan -slim sudah cukup untuk mengurangi ukuran awal
+FROM python:3.12-slim AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
+# Upgrade pip dan install dependensi ke dalam virtual environment
+# Ini membuat proses penyalinan ke tahap selanjutnya lebih bersih dan terisolasi
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+
+# Tahap 2: Final - Image akhir yang akan dijalankan di produksi
+# Kita mulai lagi dari base image yang bersih dan ramping
+FROM python:3.12-slim
+
+# Buat user non-root untuk keamanan
+RUN useradd --create-home appuser
+WORKDIR /home/appuser/app
+
+# Install HANYA dependensi sistem yang dibutuhkan saat runtime
+# --no-install-recommends mencegah instalasi paket yang tidak perlu
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
     libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
     libgomp1 \
     curl \
+    # Membersihkan cache dalam satu layer yang sama untuk efisiensi
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Salin virtual environment yang berisi paket Python dari tahap builder
+COPY --from=builder /opt/venv /opt/venv
 
-
-# Install Python dependencies
-RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
-# Copy the model file and labels
-COPY mainModel.keras .
-COPY labels.txt .
-
-# Copy the application files
+# Salin file aplikasi
 COPY app.py .
+COPY labels.txt .
+COPY mainModel.keras .
 
-# Create a directory for uploaded images
-RUN mkdir -p uploads
+# Berikan kepemilikan file kepada user non-root
+RUN chown -R appuser:appuser /home/appuser/app
 
-# Expose port for FastAPI
+# Ganti ke user non-root
+USER appuser
+
+# Aktifkan virtual environment
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Expose port untuk FastAPI
 EXPOSE 8000
 
-# Set environment variables
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
-
-# Health check
+# Health check untuk monitoring
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the FastAPI application
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"] 
+# Jalankan aplikasi FastAPI
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
