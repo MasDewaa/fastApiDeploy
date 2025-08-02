@@ -19,31 +19,8 @@ app.add_middleware(
 )
 
 # 2️⃣ Load model Keras dengan error handling
-try:
-    model = tf.keras.models.load_model("mainModel.keras", compile=False)
-    print("✅ Model loaded successfully")
-except Exception as e:
-    print(f"❌ Error loading model: {e}")
-    # Create a fallback model with EXACT same architecture as training
-    base_model = tf.keras.applications.MobileNetV2(
-        input_shape=(224, 224, 3),  # Use 224x224 as in training
-        include_top=False,
-        weights='imagenet'
-    )
-    base_model.trainable = False
-    
-    # Create model with EXACT same architecture as training
-    # Create model with simplified architecture (without problematic Conv2D)
-    model = tf.keras.Sequential([
-        base_model,  # mobilenetv2_1.00_160 (None, 5, 5, 1280)
-        tf.keras.layers.GlobalAveragePooling2D(),  # (None, 1280)
-        tf.keras.layers.Dense(128, activation='relu'),  # (None, 128)
-        tf.keras.layers.Dense(60, activation='softmax')  # (None, 60)
-    ])
-    print("⚠️ Using fallback model (without trained weights)")
-
-# Compile model
-model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+model = tf.keras.models.load_model("mainModel.keras", compile=False)
+print("✅ Model loaded successfully")
 
 # 3️⃣ Load labels dari file
 try:
