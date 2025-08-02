@@ -1,5 +1,5 @@
 # Use Python 3.9 slim image as base
-FROM python:3.8
+FROM python:3.12
 
 # Set working directory
 WORKDIR /app
@@ -19,12 +19,10 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first for better caching
 COPY requirements.txt .
-COPY tensorflow-2.19.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl .
 
 
 # Install Python dependencies
 RUN pip install --upgrade pip && \
-    pip install tensorflow-2.19.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy the model file and labels
