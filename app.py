@@ -18,23 +18,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2️⃣ Load model Keras dengan error handling
-model = tf.keras.models.load_model("mainModel.keras", compile=False)
-print("✅ Model loaded successfully")
+# 2️⃣ Global variables
+model = None
+labels = []
 
-# 3️⃣ Load labels dari file
-try:
-    with open("labels.txt") as f:
-        labels = [line.strip() for line in f]
-    print(f"✅ Loaded {len(labels)} labels")
-except Exception as e:
-    print(f"❌ Error loading labels: {e}")
-    labels = [f"Batik Pattern {i+1}" for i in range(60)]
+# 3️⃣ Load model and labels function
+def load_model_and_labels():
+    global model, labels
+    
+    # Load model
+    try:
+        model = tf.keras.models.load_model("mainModel.keras", compile=False)
+        print("✅ Model loaded successfully")
+    except Exception as e:
+        print(f"❌ Error loading model: {e}")
+        return False
+    
+    # Load labels
+    try:
+        with open("labels.txt") as f:
+            labels = [line.strip() for line in f]
+        print(f"✅ Loaded {len(labels)} labels")
+    except Exception as e:
+        print(f"❌ Error loading labels: {e}")
+        labels = [f"Batik Pattern {i+1}" for i in range(60)]
+    
+    return True
 
-# 4️⃣ Ukuran input gambar (sesuai dengan model!)
-IMAGE_SIZE = (224, 224)  # Sesuai dengan input shape model yang ter-load
+# 4️⃣ Load on startup
+load_model_and_labels()
 
-# 5️⃣ Endpoint root
+# 5️⃣ Ukuran input gambar
+IMAGE_SIZE = (160, 160)
+
+# 6️⃣ Endpoint root
 @app.get("/")
 def read_root():
     return {
@@ -43,7 +60,7 @@ def read_root():
         "total_classes": len(labels)
     }
 
-# 6️⃣ Health check endpoint
+# 7️⃣ Health check endpoint
 @app.get("/health")
 def health_check():
     return {
@@ -52,9 +69,12 @@ def health_check():
         "total_classes": len(labels)
     }
 
-# 7️⃣ Model info endpoint
+# 8️⃣ Model info endpoint
 @app.get("/model-info")
 def model_info():
+    if model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    
     return {
         "model_type": "MobileNetV2 Transfer Learning",
         "input_shape": str(model.input_shape),
@@ -64,9 +84,13 @@ def model_info():
         "available_classes": labels
     }
 
-# 6️⃣ Endpoint prediksi (upload image)
+# 9️⃣ Endpoint prediksi (upload image)
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    # Check if model is loaded
+    if model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    
     try:
         # Validate file type
         if not file.content_type.startswith('image/'):
