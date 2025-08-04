@@ -5,9 +5,10 @@ services:
     build: .
     container_name: batik-classification-api
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:8000"
     environment:
       - PYTHONUNBUFFERED=1
+      - PORT=8000
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
