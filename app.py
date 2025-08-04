@@ -28,7 +28,7 @@ def load_model_and_labels():
     
     # Load model
     try:
-        model = tf.keras.models.load_model("mainModel.keras", compile=False)
+        model = tf.keras.models.load_model("mymodel.keras", compile=False)
         print("✅ Model loaded successfully")
     except Exception as e:
         print(f"❌ Error loading model: {e}")
