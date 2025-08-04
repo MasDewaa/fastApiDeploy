@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY app.py .
-COPY mainModel.keras .
+COPY mymodel.keras .
 COPY labels.txt .
 
 # Expose port (Railway will set the actual port)

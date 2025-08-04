@@ -22,16 +22,110 @@ app.add_middleware(
 model = None
 labels = []
 
+# 2.5️⃣ Model validation function
+def validate_model(model):
+    """Validate that the loaded model can make predictions"""
+    try:
+        # Create a dummy input to test the model
+        dummy_input = np.random.random((1, 160, 160, 3))
+        prediction = model.predict(dummy_input, verbose=0)
+        print(f"✅ Model validation successful. Output shape: {prediction.shape}")
+        return True
+    except Exception as e:
+        print(f"❌ Model validation failed: {e}")
+        return False
+
+# 2.6️⃣ Custom model loading function for dense layer issues
+def load_model_with_dense_fix(model_path):
+    """Load model with specific handling for dense layer input issues"""
+    try:
+        # Try to load the model configuration first
+        model_config = tf.keras.models.model_from_json(
+            tf.keras.models.load_model(model_path, compile=False).to_json()
+        )
+        
+        # Load weights separately
+        original_model = tf.keras.models.load_model(model_path, compile=False)
+        model_config.set_weights(original_model.get_weights())
+        
+        # Compile the model
+        model_config.compile(
+            optimizer='adam',
+            loss='categorical_crossentropy',
+            metrics=['accuracy']
+        )
+        
+        print("✅ Model loaded with dense layer fix")
+        return model_config
+    except Exception as e:
+        print(f"❌ Dense layer fix failed: {e}")
+        return None
+
 # 3️⃣ Load model and labels function
 def load_model_and_labels():
     global model, labels
     
-    # Load model
+    # Load model with multiple fallback strategies
+    model_loaded = False
+    
+    # Strategy 1: Try loading with custom_objects and compile=False
     try:
-        model = tf.keras.models.load_model("mymodel.keras", compile=False)
-        print("✅ Model loaded successfully")
+        model = tf.keras.models.load_model("mymodel.keras", compile=False, custom_objects=None)
+        print("✅ Model loaded successfully with compile=False")
+        model_loaded = True
     except Exception as e:
-        print(f"❌ Error loading model: {e}")
+        print(f"❌ Strategy 1 failed: {e}")
+    
+    # Strategy 2: Try loading with different TensorFlow version compatibility
+    if not model_loaded:
+        try:
+            # Try loading with legacy format support
+            model = tf.keras.models.load_model("mymodel.keras", compile=False, options=tf.saved_model.LoadOptions(experimental_io_device='/job:localhost'))
+            print("✅ Model loaded successfully with legacy format support")
+            model_loaded = True
+        except Exception as e:
+            print(f"❌ Strategy 2 failed: {e}")
+    
+    # Strategy 3: Try loading mainModel.keras as fallback
+    if not model_loaded:
+        try:
+            model = tf.keras.models.load_model("mainModel.keras", compile=False)
+            print("✅ Fallback model (mainModel.keras) loaded successfully")
+            model_loaded = True
+        except Exception as e:
+            print(f"❌ Strategy 3 failed: {e}")
+    
+    # Strategy 4: Try to fix the dense layer issue by recreating the model
+    if not model_loaded:
+        try:
+            # Load the model architecture without weights first
+            model = tf.keras.models.load_model("mymodel.keras", compile=False, custom_objects=None)
+            
+            # If we get here, the model loaded but might have the dense layer issue
+            # Try to fix by recompiling the model
+            model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+            print("✅ Model loaded and recompiled successfully")
+            model_loaded = True
+        except Exception as e:
+            print(f"❌ Strategy 4 failed: {e}")
+    
+    # Strategy 5: Try custom dense layer fix
+    if not model_loaded:
+        try:
+            model = load_model_with_dense_fix("mymodel.keras")
+            if model is not None:
+                print("✅ Model loaded with custom dense layer fix")
+                model_loaded = True
+        except Exception as e:
+            print(f"❌ Strategy 5 failed: {e}")
+    
+    if not model_loaded:
+        print("❌ All loading strategies failed. Model could not be loaded.")
+        return False
+    
+    # Validate the loaded model
+    if not validate_model(model):
+        print("❌ Model validation failed after loading")
         return False
     
     # Load labels
